@@ -26,14 +26,14 @@ ASK_PHONE, WAIT_CV, ASK_JOB = range(3)
 user_data_store = {}
 
 bot_token = os.getenv("BOT_TOKEN")
+from telegram.error import BadRequest, RetryAfter
 
 async def fake_typing_animation(context, message_obj):
-    dots = [" ",".", "..","..."]
+    dots = ["...", "..", "."]
     i = 0
     last_text = None
     try:
         while True:
-            await context.bot.send_chat_action(chat_id=message_obj.chat_id, action=ChatAction.TYPING)
             new_text = f"🧠 Tahlil qilinmoqda{dots[i % len(dots)]}"
 
             if new_text != last_text:
@@ -42,9 +42,20 @@ async def fake_typing_animation(context, message_obj):
                     last_text = new_text
                 except BadRequest as e:
                     if "Message is not modified" not in str(e):
-                        raise  # re-raise unexpected errors
+                        raise
+                except RetryAfter as e:
+                    print(f"Flood control: waiting {e.retry_after} sec")
+                    await asyncio.sleep(e.retry_after)
 
-            await asyncio.sleep(0.3)
+            # Send typing action less frequently (e.g. every 3s)
+            if i % 3 == 0:
+                try:
+                    await context.bot.send_chat_action(chat_id=message_obj.chat_id, action=ChatAction.TYPING)
+                except RetryAfter as e:
+                    print(f"Typing action flood limit: waiting {e.retry_after} sec")
+                    await asyncio.sleep(e.retry_after)
+
+            await asyncio.sleep(1.5)  # ⬅️ Slightly slower to avoid spam
             i += 1
     except asyncio.CancelledError:
         try:
