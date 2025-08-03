@@ -1,0 +1,43 @@
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+env/
+.venv/
+
+# Environment variables
+.env
+
+# SQLite database
+*.db
+
+# VS Code config
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Deployment files (optional)
+*.log
+*.pid
+*.bak
+
+# PyInstaller
+*.spec
+
+# Python test coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+coverage.xml
+.cache
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# Heroku/Render
+*.tar.gz
+*.egg-info/

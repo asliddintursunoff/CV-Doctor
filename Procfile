@@ -1,0 +1,1 @@
+worker: python cv_bot.py
