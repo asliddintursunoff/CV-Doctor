@@ -28,6 +28,27 @@ user_data_store = {}
 bot_token = os.getenv("BOT_TOKEN")
 from telegram.error import BadRequest, RetryAfter
 
+
+def clean_gemini_text(text: str) -> str:
+    import re
+    lines = text.splitlines()
+    formatted = []
+    for line in lines:
+        line = line.strip()
+
+        # Remove Markdown bold/italic markers
+        line = re.sub(r"\*\*(.*?)\*\*", r"\1", line)
+        line = re.sub(r"\*(.*?)\*", r"\1", line)
+
+        # Replace bullet symbol if needed
+        if line.startswith("- ") or line.startswith("* "):
+            line = "• " + line[2:]
+
+        formatted.append(line)
+    return "\n".join(formatted)
+
+
+
 async def fake_typing_animation(context, message_obj):
     dots = ["...", "..", "."]
     i = 0
@@ -137,33 +158,38 @@ async def handle_job(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     cv_text = user_data_store.get(user_id, {}).get("cv_text", "Matn topilmadi.")
 
-    # Send initial message
+    # Send initial animation message
     loading_msg = await update.message.reply_text("🧠 Tahlil qilinmoqda...")
 
-    # Start fake animation in background
+    # Start animation
     animation_task = asyncio.create_task(fake_typing_animation(context, loading_msg))
 
-    # Run Gemini call in background
-    loop = asyncio.get_event_loop()
-    gemini_output = await loop.run_in_executor(
-        None, lambda: generate_response(cv_text, job_title)
-    )
-
-    # Stop animation
-    animation_task.cancel()
-
     try:
-        await animation_task
-    except asyncio.CancelledError:
-        pass
+        # Run Gemini in thread executor
+        loop = asyncio.get_event_loop()
+        gemini_output = await loop.run_in_executor(
+            None, lambda: generate_response(cv_text, job_title)
+        )
 
-    # Replace loading message with final output (chunked)
+    finally:
+        # Cancel animation regardless of error/success
+        animation_task.cancel()
+        try:
+            await animation_task
+        except asyncio.CancelledError:
+            pass
+
+    # Format the output (remove **, *, etc.)
+    formatted_output = clean_gemini_text(gemini_output)
+
+    # Telegram limit = 4096 characters. Send in 4000 chunks to be safe.
     chunk_size = 4000
-    for i in range(0, len(gemini_output), chunk_size):
-        await update.message.reply_text(gemini_output[i:i + chunk_size])
+    for i in range(0, len(formatted_output), chunk_size):
+        await update.message.reply_text(formatted_output[i:i + chunk_size])
 
     await update.message.reply_text("♻️ Iltimos, yana bir rezyumeni yuboring (PDF yoki DOCX):")
     return WAIT_CV
+
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
