@@ -4,6 +4,8 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, filters,
     ContextTypes, ConversationHandler
 )
+from telegram import ReplyKeyboardRemove
+
 from PyPDF2 import PdfReader
 import docx
 import os
@@ -110,7 +112,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     contact = update.message.contact
     user = update.message.from_user
-
+    
     if contact:
         save_user(
             telegram_id=user.id,
@@ -120,7 +122,11 @@ async def handle_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
             phone=contact.phone_number
         )
 
-        await update.message.reply_text("✅ Raqam qabul qilindi.\nIltimos, rezyumeni yuboring (PDF yoki DOCX formatda).")
+        await update.message.reply_text(
+            "✅ Siz muvaffaqqiyatli ro'yhatdan o'tdingiz.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await update.message.reply_text("Keling CV'ingizni tahlil qilamiz🧮\nBuning uchun menga CV junating📩")
         return WAIT_CV
     else:
         await update.message.reply_text("📲 Iltimos, telefon raqamingizni tugma orqali yuboring.")
@@ -187,7 +193,7 @@ async def handle_job(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i in range(0, len(formatted_output), chunk_size):
         await update.message.reply_text(formatted_output[i:i + chunk_size])
 
-    await update.message.reply_text("♻️ Iltimos, yana bir rezyumeni yuboring (PDF yoki DOCX):")
+    await update.message.reply_text("♻️Yana tahlil qilishni xohlasangiz CV'ingizni yuboring:")
     return WAIT_CV
 
 
@@ -195,6 +201,13 @@ async def handle_job(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Jarayon to'xtatildi. /start buyrug'i orqali qayta boshlang.")
     return ConversationHandler.END
+
+
+async def handle_unexpected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🤖 CV'ingizni tashlang. Tahlil qilib beraman.")
+    return ASK_JOB
+
+
 
 def main():
     init_db()
@@ -206,7 +219,11 @@ def main():
         states={
             ASK_PHONE: [MessageHandler(filters.CONTACT, handle_phone)],
             WAIT_CV: [MessageHandler(filters.Document.ALL, handle_cv)],
-            ASK_JOB: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_job)],
+            ASK_JOB: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, handle_job),
+            MessageHandler(filters.ALL, handle_unexpected),
+        ],
+
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
